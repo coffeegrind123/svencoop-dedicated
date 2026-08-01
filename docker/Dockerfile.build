@@ -1,0 +1,36 @@
+# BUILDER for ReHLDS_Sven — produces binaries, is not the runtime.
+#
+# ⚠ BASE IMAGE IS LOAD-BEARING, and the reason is the opposite of the obvious one.
+#
+# Upstream ReHLDS_Sven CI builds inside `container: debian:11-slim` (see its
+# .github/workflows/build.yml). Building on Debian 12 (bookworm, GCC 12) instead produces
+# an engine that aborts during init on ANY host:
+#     Fatal glibc error: malloc assertion failure in sysmalloc: ...
+#     #7  malloc  #8  operator new  #9  Rehlds_Interfaces_InitClients  #10 Host_Init
+# i.e. the heap top chunk is already corrupt before that allocation — a miscompile/UB
+# mismatch against the toolchain upstream actually targets, not a runtime problem.
+#
+# The direction matters and is easy to get backwards:
+#   * Building on bullseye  -> binaries need glibc <= 2.31 -> run on bullseye AND on
+#     bookworm/trixie, because OLD-on-NEW is the supported direction.
+#   * Building on bookworm  -> binaries REQUIRE GLIBC_2.34 -> cannot run on bullseye at
+#     all, and still crash on bookworm.
+#
+# So: build here, run natively anywhere. That is what lets combatskirmish.net (Debian 13,
+# systemd, NO Docker) run the result without a container at runtime.
+FROM debian:11-slim
+
+RUN dpkg --add-architecture i386 \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends \
+      build-essential cmake git ca-certificates \
+      gcc-multilib g++-multilib \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+# Source is bind-mounted at build time so we compile the working tree, including the
+# local patches in deploy/svencoop-server/patches/.
+CMD ["/bin/bash", "-c", "rm -rf build && ./build.sh --jobs=$(nproc) && \
+     echo '--- artifacts ---' && \
+     ls -la build/rehlds/engine_i486.so build/rehlds/dedicated/hlds_linux \
+            build/rehlds/filesystem/FileSystem_Stdio/filesystem_stdio.so"]

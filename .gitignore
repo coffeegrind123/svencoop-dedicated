@@ -1,0 +1,9 @@
+# Never commit game content or vendor binaries — this repo is a recipe, not a redistribution.
+server/
+_stage/
+*.so
+*.so.*
+*.wad
+*.bsp
+depot/
+ReHLDS_Sven/
