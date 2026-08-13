@@ -28,8 +28,9 @@ RUN dpkg --add-architecture i386 \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
-# Source is bind-mounted at build time so we compile the working tree, including the
-# local patches in deploy/svencoop-server/patches/.
+# Source is bind-mounted at build time so we compile the working tree. Point it at
+# https://github.com/coffeegrind123/ReHLDS_Sven — the fixes that used to be applied here as
+# patches now live in that fork's history.
 CMD ["/bin/bash", "-c", "rm -rf build && ./build.sh --jobs=$(nproc) && \
      echo '--- artifacts ---' && \
      ls -la build/rehlds/engine_i486.so build/rehlds/dedicated/hlds_linux \

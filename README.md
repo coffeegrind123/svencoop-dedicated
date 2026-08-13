@@ -1,10 +1,10 @@
 # svencoop-dedicated
 
 Build and run a **Sven Co-op dedicated server that accepts non-Steam clients**, using
-[ReHLDS_Sven](https://github.com/sw1ft747/ReHLDS_Sven) + [Metamod-R](https://github.com/rehlds/Metamod-R)
+[ReHLDS_Sven](https://github.com/coffeegrind123/ReHLDS_Sven) + [Metamod-R](https://github.com/rehlds/Metamod-R)
 + [ReUnion](https://github.com/rehlds/reunion) with the official Sven Co-op `server.so`.
 
-This is a **recipe, not a redistribution**. It contains build scripts, patches and configs.
+This is a **recipe, not a redistribution**. It contains build scripts and configs.
 It contains no Valve or Sven Co-op content or binaries — those are fetched from Steam at
 build time with `DepotDownloader` (app **276060**, anonymous login).
 
@@ -42,7 +42,7 @@ Neither half is sufficient:
 `Console initialized.` is the signal init cleared the corruption. It never appears on a
 bookworm runtime.
 
-**Ruled out, do not re-test:** breakpad (patched out — `patches/`, crash persists),
+**Ruled out, do not re-test:** breakpad (patched out in the engine fork, crash persists),
 `steamclient.so` (crashes with and without it), heap sizing (`-minmemory`, `-maxmemory`,
 `-heapsize 32768/131072` all identical), glibc malloc tunables (`MALLOC_MMAP_THRESHOLD_`,
 `MALLOC_TOP_PAD_`, `glibc.malloc.arena_max`).
@@ -66,17 +66,33 @@ non-Steam clients are **rejected** by default — the opposite of why you are de
 | path | what |
 |---|---|
 | `docker/Dockerfile.build` | bullseye builder for ReHLDS_Sven |
-| `patches/` | patches applied to ReHLDS_Sven before building |
 | `config/reunion.cfg` | ReUnion config, non-Steam clients accepted |
 | `config/plugins.ini` | Metamod plugin list (ReUnion first) |
 | `docs/` | findings and runbook |
 
-## Patches
+## The engine fork
 
-- **`0001-nobreakpad-in-filesystem-init.patch`** — `sys_dll2.cpp` already guards
-  `SteamAPI_UseBreakpadCrashHandler` behind `-nobreakpad`, but `filesystem.cpp` called
-  `SteamAPI_SetBreakpadAppID` unconditionally, so the flag never actually kept you out of
-  Steam's breakpad path. A non-Steam server has no use for Steam crash reporting.
+Build from **[coffeegrind123/ReHLDS_Sven](https://github.com/coffeegrind123/ReHLDS_Sven)**,
+not upstream. It tracks [sw1ft747/ReHLDS_Sven](https://github.com/sw1ft747/ReHLDS_Sven) and
+carries three fixes needed to run the retail Sven `server.so`. They used to live here as a
+`patches/` directory applied before building; carrying them in the source instead means the
+build is a plain checkout, and the fixes are reviewable as commits with their reasoning
+attached rather than as context-free diffs.
+
+- **`engine: recover from an unterminated MESSAGE_BEGIN`** — the official `server.so` calls
+  `MESSAGE_BEGIN` and returns without a matching `MESSAGE_END`. `gMsgStarted` is set only in
+  `PF_MessageBegin_I` and cleared only in `PF_MessageEnd_I`, and nothing resets it on level
+  change, client drop or shutdown — so one leak is permanent and the *next* `MessageBegin`
+  takes the fatal, though it is the victim rather than the culprit. Measured before the fix:
+  **484 fatals over 8 days, ~30/day**, always in the pattern map change → server empties →
+  fatal seconds later. Discarding the stale message is safe because `PF_MessageEnd_I` is the
+  only thing that copies the staged buffer to a destination, so an unterminated message has
+  written nothing to any client and there is nothing on the wire to corrupt.
+- **`engine: fix stack overflow in DELTA_ParseDelta`** — under `REHLDS_SVEN`.
+- **`engine: honour -nobreakpad in FileSystem_SetGameDirectory`** — `sys_dll2.cpp` already
+  guards `SteamAPI_UseBreakpadCrashHandler` behind `-nobreakpad`, but `filesystem.cpp`
+  called `SteamAPI_SetBreakpadAppID` unconditionally, so the flag never actually kept you
+  out of Steam's breakpad path. A non-Steam server has no use for Steam crash reporting.
 
 ## Status
 
@@ -90,7 +106,7 @@ complete but silently omits e.g. `libcurl.so.4`.
 
 ## Licence
 
-Scripts, patches and configs here: MIT (see `LICENSE`).
+Scripts and configs here: MIT (see `LICENSE`).
 ReHLDS_Sven, Metamod-R and ReUnion are their authors' work under their own licences.
 Sven Co-op and Half-Life content belongs to their respective owners and is **not**
 included — it is downloaded from Steam at build time.
