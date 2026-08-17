@@ -244,10 +244,39 @@ Measured, same server and settings:
 (old `3.15.0.896` and rebuilt `3.15.0.898`) score identically under identical method, so this
 never had anything to do with the upstream rebuild.
 
-Still open, and unrelated: Sven's `server.so` emits `Unable to initialize Steam file system` —
-traced to the game DLL itself (grep with a control across every binary), most likely because
-the server install is incomplete. Fetch the **full** depot; a filtered `regex:.*\.so$` filelist
-looks complete but silently omits e.g. `libcurl.so.4`.
+### ✅ CLOSED: `Unable to initialize Steam file system` was the wrong `filesystem_stdio.so`
+
+This was recorded as open, and blamed on an incomplete install — "fetch the **full** depot; a
+filtered `regex:.*\.so$` filelist looks complete but silently omits e.g. `libcurl.so.4`".
+**That hypothesis was wrong.** The depot is fetched in full now, but that is not what fixed it,
+and chasing install completeness would have missed the cause entirely.
+
+The cause is `filesystem_stdio.so` **provenance**. Sven's `dlls/server.so` dlopens it and asks
+for `SCFileSystem002`, a Sven-specific interface:
+
+| build of `filesystem_stdio.so` | `SCFileSystem002` | `VFileSystem009` |
+|---|---|---|
+| official Sven server (correct) | ✅ | ✅ |
+| ReHLDS_Sven's own build | ❌ | ✅ |
+
+ReHLDS_Sven's build satisfies the *engine* but not the *game DLL*, so the server dies —
+**after** Metamod has printed its full banner, which is what makes it read as a Metamod or
+install fault:
+
+```
+Unable to initialize Steam file system.
+: Unknown error -1
+```
+
+Reproduced on demand 2026-08-17 as a positive control: on a tree that boots normally, swapping
+in ReHLDS_Sven's `filesystem_stdio.so` and changing nothing else brings the error straight back.
+`assemble.sh` stages Sven's copy and asserts `SCFileSystem002` is present, so this cannot
+silently regress.
+
+⚠ Note that `libcurl.so.4` is a **different** failure with a **different** symptom — Sven's
+`server.so` links against it, and its absence gives `FATAL ERROR: Failure to load game DLL`,
+not this message. `docker/Dockerfile.run` installs `libcurl4:i386` for that reason. Do not
+conflate the two.
 
 ## Licence
 
