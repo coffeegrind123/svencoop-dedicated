@@ -104,7 +104,9 @@ non-Steam clients are **rejected** by default — the opposite of why you are de
 
 | path | what |
 |---|---|
-| `docker/Dockerfile.build` | bullseye builder for ReHLDS_Sven |
+| `scripts/assemble.sh` | fetches everything and builds a complete server |
+| `docker/Dockerfile.run` | bullseye runtime; mount an assembled tree at `/server` |
+| `docker/Dockerfile.build` | bullseye builder, for building ReHLDS_Sven from source |
 | `docs/` | findings and runbook |
 
 > [!NOTE]

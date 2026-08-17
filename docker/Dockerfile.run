@@ -1,0 +1,47 @@
+# RUNTIME for an assembled Sven Co-op server. Ships no game content and no binaries --
+# mount an assemble.sh output at /server.
+#
+# ⚠ BASE IMAGE IS LOAD-BEARING, and not for the obvious reason.
+#
+# The engine must both BUILD and RUN on bullseye. Running a bullseye-built engine on
+# bookworm or newer aborts during init with
+#     Fatal glibc error: malloc assertion failure in sysmalloc: ...
+#     #7 malloc  #8 operator new  #9 Rehlds_Interfaces_InitClients  #10 Host_Init
+# i.e. the heap top chunk is already corrupt before that allocation. `Console initialized.`
+# is the line that says init cleared; it never appears on a bookworm runtime.
+FROM debian:11-slim
+
+# The engine and the game library are 32-bit.
+#
+# ⚠ libcurl4:i386 is NOT optional and its absence is nearly unreadable: Sven's
+# dlls/server.so links against libcurl.so.4, and without it Metamod prints its FULL
+# banner and only then the server dies with
+#     FATAL ERROR (shutting down): Failure to load game DLL; exiting...
+# which names neither the library nor the reason and reads as a Metamod fault.
+# Diagnose that message with `ldd dlls/server.so | grep "not found"` before theorising.
+RUN dpkg --add-architecture i386 \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends \
+      libc6:i386 libstdc++6:i386 lib32gcc-s1 \
+      libcurl4:i386 libssl1.1:i386 zlib1g:i386 \
+      ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+# steamclient.so is looked up at BOTH the absolute sdk32 path and beside the binary.
+# Only the absolute path's failure is fatal; the earlier warnings for the bare name look
+# like noise, so wire the directory up ahead of time.
+RUN mkdir -p /root/.steam/sdk32
+
+WORKDIR /server
+ENV LD_LIBRARY_PATH=/server
+
+# Link steamclient.so into place at start: it lives in the mounted tree, so it cannot be
+# copied at build time.
+ENTRYPOINT ["/bin/sh", "-c", "ln -sf /server/steamclient.so /root/.steam/sdk32/steamclient.so 2>/dev/null; exec ./hlds_linux \"$@\"", "--"]
+
+# ⚠ sv_lan 0 is deliberate. sv_lan 1 bypasses Steam auth entirely, so non-Steam clients
+# connect even when ReUnion is doing nothing at all -- the server looks correct and
+# proves nothing. The default map must also be a SVEN map: 'crossfire' is Half-Life
+# deathmatch and is not in the Sven content, and a failed map change leaves the server
+# running with NO MAP rather than exiting.
+CMD ["-game", "svencoop", "+map", "abandoned", "+maxplayers", "8", "+port", "27015", "+sv_lan", "0"]
