@@ -132,24 +132,45 @@ public servers report), Metamod-r loads, the official `server.so` loads, `meta l
 `[ 1] Reunion RUN`, a map spawns, and a **non-Steam client reaches `ca_active` and sustains
 gameplay** with ReUnion issuing a generated `STEAM_x:y:z` identity.
 
-### ⚠ Intermittent signon failure (~10–25%), PRE-EXISTING — do not blame the rebuild
+### ⚠ Back-to-back verifier runs fail ~20% — that is YOUR TEST, not the server
 
-Repeated verifier runs against the same server intermittently return
-`{"works":false,"state":"signon_incomplete","reason":"server went silent during signon"}`,
-having already passed auth (`connect accepted`, client logged as `connected`). It dies after
-`serverinfo` / signon state 1, and the server logs nothing.
+Running the verifier in a tight loop returns
+`{"works":false,"state":"signon_incomplete","reason":"server went silent during signon"}` for
+roughly one run in five, sometimes with `rx_packets: 0`. It is tempting to read this as an
+engine or fragmentation bug. It is neither.
 
-**This is not a regression from the upstream rebuild.** Matched 20-run samples on the *same*
-host, game volume and harness:
+**Each verifier run leaves a client connected.** The harness container exits without a clean
+disconnect, so the client lingers server-side until timeout. Loop the harness and they pile up:
 
-| engine | result |
+```
+players :  3 active (8 max)
+# 1 "verifier"     74 ... 172.18.0.10:43850
+# 2 "(1)verifier"  75 ... 172.18.0.10:51647
+# 3 "(2)verifier"  76 ... 172.18.0.10:58956
+```
+
+Every `docker run --rm` verifier gets the **same** container IP (`172.18.0.10`), so once six
+have stacked up, `sv_rehlds_maxclients_from_single_ip` (default **5**) correctly refuses the
+next one and the client sees total silence:
+
+```
+Too many connect packets from 172.18.0.10:54616 (6>5)
+```
+
+Measured, same server and settings:
+
+| method | result |
 |---|---|
-| old fork `3.15.0.896` | 15/20 |
-| rebuilt `3.15.0.898` | 15/20 |
+| back-to-back trials | 15/20, 18/20, 19/20, 23/30 |
+| trials spaced 25s so clients expire | **10/10** |
 
-Identical, so the rebuild neither caused nor fixed it. ⚠ **A single run proves nothing here** —
-the first run after the switch failed and looked exactly like a regression. Always take a
-sample of ~20 and compare against the previous engine before concluding anything about signon.
+⚠ **Do not "fix" this by setting `sv_rehlds_maxclients_from_single_ip 0`.** The check is
+`count > value`, so `0` rejects *everything* — it drops the pass rate to 7/30. Setting it high
+(100) only trades the per-IP limit for the 8-slot player cap filling with zombies.
+
+⇒ **Space verifier runs by ~25s**, or run each from a distinct source IP. Both engines
+(old `3.15.0.896` and rebuilt `3.15.0.898`) score identically under identical method, so this
+never had anything to do with the upstream rebuild.
 
 Still open, and unrelated: Sven's `server.so` emits `Unable to initialize Steam file system` —
 traced to the game DLL itself (grep with a control across every binary), most likely because
