@@ -98,7 +98,8 @@ non-Steam clients are **rejected** by default — the opposite of why you are de
 | `4` | accept, assign a generated `VALVE_x:y:z` |
 | **`5`** | **drop the client** |
 
-`config/reunion.cfg` here is upstream's file with **only** those two values changed to `3`.
+The `reunion.cfg` shipped in the ReHLDS_Sven release is ReUnion's own file for the pinned
+version with **only** those two values changed to `3`.
 
 ## Layout
 
