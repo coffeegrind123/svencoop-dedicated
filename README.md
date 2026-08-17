@@ -8,6 +8,45 @@ This is a **recipe, not a redistribution**. It contains build scripts and config
 It contains no Valve or Sven Co-op content or binaries — those are fetched from Steam at
 build time with `DepotDownloader` (app **276060**, anonymous login).
 
+## Quick start
+
+One command builds a complete, ready-to-run server:
+
+```sh
+scripts/assemble.sh -o /srv/svencoop
+```
+
+It fetches everything and verifies the result:
+
+| from | what |
+|---|---|
+| Steam app **276060**, anonymous | retail content, `dlls/server.so`, `filesystem_stdio.so`, `cl_dlls/`, `liblist.gam` |
+| steamcmd | `steamclient.so` — a modern one; Sven's own stops at `SteamClient020` |
+| [ReHLDS_Sven](https://github.com/coffeegrind123/ReHLDS_Sven) release | engine, launcher, `libsteam_api.so`, and Metamod-R + ReUnion preconfigured |
+
+No Steam account is needed. App 276060 resolves depots `1006`, `225841` (the **game**
+content) and `276062`, all reachable anonymously.
+
+Then:
+
+```sh
+cd /srv/svencoop
+LD_LIBRARY_PATH="$PWD" ./hlds_linux -game svencoop \
+    +map abandoned +maxplayers 8 +port 27015 +sv_lan 0
+```
+
+> [!IMPORTANT]
+> Use `sv_lan 0`. `sv_lan 1` bypasses Steam auth entirely, so a non-Steam client connects
+> even when ReUnion is doing nothing — the test passes while proving nothing.
+
+Confirm on the server console that `meta list` shows `[ 1] Reunion  RUN`.
+`Read plugin config for: Reunion` is **not** proof; it prints either way.
+
+CI runs the same script on every push and weekly, boots the result, and publishes the
+**server layer** (engine, plugin stack, configs, and `assemble.sh`) as a release. The
+retail content is deliberately not published — this repo is a recipe, and the assembled
+tree is ~2.6 GB, past GitHub's per-asset limit regardless.
+
 ## Why
 
 Public Sven Co-op servers reject non-Steam authentication. Measured 2026-08-01 against 14

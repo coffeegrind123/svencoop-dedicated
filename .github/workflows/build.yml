@@ -1,0 +1,173 @@
+name: Assemble and Release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+  schedule:
+    # Retail Sven content and the ReHLDS_Sven release both move underneath this recipe.
+    # A weekly run is what turns "it worked when we wrote it" into "it works today".
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  assemble:
+    name: 'Assemble server'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq unzip rsync zip lib32gcc-s1
+
+      - name: Assemble the full server tree
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/assemble.sh -o "$RUNNER_TEMP/svencoop-full"
+
+      # Boot it. Inside debian:11-slim, NOT on the runner: the engine must both build and
+      # RUN on bullseye (see README), and Sven's server.so needs libssl1.1:i386, which
+      # ubuntu-24.04 no longer packages at all.
+      - name: Smoke-test the assembled server
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$RUNNER_TEMP/svencoop-full:/server" -w /server debian:11-slim bash -c '
+            set -e
+            dpkg --add-architecture i386 >/dev/null
+            apt-get update -qq >/dev/null
+            apt-get install -y -qq libc6:i386 libstdc++6:i386 lib32gcc-s1 \
+                                   libcurl4:i386 libssl1.1:i386 zlib1g:i386 >/dev/null
+
+            # Run ldd BEFORE forming any theory about "Failure to load game DLL" -- the
+            # message names neither the library nor the reason.
+            echo "--- unresolved deps in dlls/server.so:"
+            ldd /server/svencoop/dlls/server.so 2>&1 | grep "not found" && exit 1 || echo "(none)"
+
+            mkdir -p /root/.steam/sdk32 && cp /server/steamclient.so /root/.steam/sdk32/
+
+            # sv_lan 0 matters: sv_lan 1 bypasses Steam auth entirely, so a non-Steam
+            # client would connect with ReUnion doing nothing and the test would pass
+            # while proving nothing.
+            export LD_LIBRARY_PATH=/server
+            timeout 90 ./hlds_linux -game svencoop \
+              +map abandoned +maxplayers 8 +port 27015 +sv_lan 0 > /server/boot.log 2>&1 || true
+          '
+          echo '--- boot log ---'; tail -40 "$RUNNER_TEMP/svencoop-full/boot.log"
+
+          BOOT="$RUNNER_TEMP/svencoop-full/boot.log"
+          grep -q 'Console initialized' "$BOOT" \
+            || { echo 'FATAL: engine never reached "Console initialized."' >&2; exit 1; }
+          # Metamod prints its full banner BEFORE this fatal, so a passing banner proves
+          # nothing on its own.
+          ! grep -q 'Failure to load game DLL' "$BOOT" \
+            || { echo 'FATAL: Metamod could not load dlls/server.so' >&2; exit 1; }
+          # A server that answers its console is not a server that is running: without
+          # cl_dlls/ it stays up with NO MAP. This line is the proof a map spawned.
+          grep -qE 'Log file started|map will end in' "$BOOT" \
+            || { echo 'FATAL: server never spawned a map' >&2; exit 1; }
+          rm -f "$BOOT"
+          echo 'smoke test OK'
+
+      - name: Stage the publishable layer
+        id: layer
+        run: |
+          set -euo pipefail
+          FULL="$RUNNER_TEMP/svencoop-full"
+          LAYER="$RUNNER_TEMP/svencoop-layer"
+          mkdir -p "$LAYER/svencoop/addons"
+
+          # Everything this project produces or configures -- but NOT Valve's or Sven
+          # Co-op's content. See README: this repo is a recipe, not a redistribution,
+          # and the retail tree is ~2 GB, over GitHub's per-asset limit anyway.
+          cp "$FULL/hlds_linux" "$FULL/engine_i486.so" "$FULL/libsteam_api.so" "$LAYER/"
+          cp -a "$FULL/svencoop/addons/." "$LAYER/svencoop/addons/"
+          cp "$FULL/svencoop/reunion.cfg" "$LAYER/svencoop/reunion.cfg"
+          cp scripts/assemble.sh "$LAYER/assemble.sh"
+
+          {
+            echo "engine_release=$(gh release view --repo coffeegrind123/ReHLDS_Sven --json tagName -q .tagName)"
+            echo "sven_build=$(grep -aoE 'Exe build: [^\"]*' "$FULL/svencoop/dlls/server.so" 2>/dev/null | head -1 || true)"
+          } >> "$GITHUB_OUTPUT" || true
+
+          cd "$LAYER" && zip -qr "$RUNNER_TEMP/svencoop-server-layer.zip" .
+          echo "layer_sha=$(sha256sum "$RUNNER_TEMP/svencoop-server-layer.zip" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          ls -la "$RUNNER_TEMP/svencoop-server-layer.zip"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Version info
+        id: version
+        run: |
+          echo "tag=v$(date -u +%Y%m%d)-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "short_hash=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: svencoop-server-layer
+          path: ${{ runner.temp }}/svencoop-server-layer.zip
+
+      - name: Create tag
+        if: github.event_name != 'pull_request'
+        run: |
+          git tag ${{ steps.version.outputs.tag }}
+          git push origin ${{ steps.version.outputs.tag }}
+
+      - name: Create Release
+        if: github.event_name != 'pull_request'
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.version.outputs.tag }}
+          name: "svencoop-dedicated ${{ steps.version.outputs.tag }}"
+          artifacts: ${{ runner.temp }}/svencoop-server-layer.zip
+          body: |
+            Assembled and smoke-tested against **current** retail Sven Co-op content and
+            the current [ReHLDS_Sven](https://github.com/coffeegrind123/ReHLDS_Sven)
+            release (`${{ steps.layer.outputs.engine_release }}`).
+
+            ## Get a complete server
+
+            This archive is the **server layer only** — engine, plugin stack and configs.
+            It deliberately contains no Valve or Sven Co-op content: this repo is a recipe,
+            not a redistribution, and the retail tree is ~2 GB, past GitHub's per-asset limit.
+
+            One command builds the whole thing, fetching retail content from Steam with
+            DepotDownloader (app 276060, **anonymous** — no Steam account needed):
+
+            ```sh
+            ./assemble.sh -o /srv/svencoop
+            ```
+
+            ## What is in the archive
+
+            | path | what |
+            |---|---|
+            | `hlds_linux`, `engine_i486.so` | ReHLDS_Sven engine and launcher |
+            | `libsteam_api.so` | the copy the engine is linked against |
+            | `svencoop/addons/` | Metamod-R + ReUnion, preconfigured |
+            | `svencoop/reunion.cfg` | non-Steam clients accepted (`cid_NoSteam47/48 = 3`) |
+            | `assemble.sh` | fetches content and assembles a full tree |
+
+            ## Verified in this build
+
+            - the engine boots to `Console initialized.` and spawns a map
+            - `filesystem_stdio.so` provides Sven's `SCFileSystem002`
+            - `steamclient.so` satisfies the interface `libsteam_api.so` asks for
+            - `reunion.cfg` accepts non-Steam clients rather than dropping them
+            - `cl_dlls/client.dll` is staged, without which no map ever spawns
+
+            ## Build info
+
+            - Commit: [`${{ steps.version.outputs.short_hash }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+            - `svencoop-server-layer.zip` SHA-256: `${{ steps.layer.outputs.layer_sha }}`
+          draft: false
+          prerelease: false
+          makeLatest: true
+          token: ${{ secrets.GITHUB_TOKEN }}
