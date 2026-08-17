@@ -102,9 +102,31 @@ fi
 say "Fetching the ReHLDS_Sven release"
 need gh
 rm -rf "$WORK/engine" && mkdir -p "$WORK/engine"
-( cd "$WORK/engine" && gh release download ${ENGINE_TAG:+"$ENGINE_TAG"} \
-    --repo "$ENGINE_REPO" --pattern 'rehlds-sven-bin-*.zip' --clobber )
-ENGINE_ZIP=$(ls "$WORK/engine"/rehlds-sven-bin-*.zip | head -1)
+
+# Pick the newest release that actually HAS the archive, not simply the newest release.
+# A release exists from the moment it is created, but its assets are attached minutes
+# later by that repo's own CI -- so "latest" is routinely a release with nothing in it,
+# and `gh release download` then fails with "no assets to download".
+if [ -n "$ENGINE_TAG" ]; then
+  TAGS="$ENGINE_TAG"
+else
+  TAGS=$(gh release list --repo "$ENGINE_REPO" --limit 20 --json tagName,isDraft \
+           -q '.[] | select(.isDraft == false) | .tagName')
+fi
+
+ENGINE_ZIP=""
+for t in $TAGS; do
+  if gh release view "$t" --repo "$ENGINE_REPO" --json assets \
+       -q '.assets[].name' 2>/dev/null | grep -q '^rehlds-sven-bin-.*\.zip$'; then
+    ( cd "$WORK/engine" && gh release download "$t" --repo "$ENGINE_REPO" \
+        --pattern 'rehlds-sven-bin-*.zip' --clobber )
+    ENGINE_ZIP=$(ls "$WORK/engine"/rehlds-sven-bin-*.zip | head -1)
+    echo "using release $t"
+    break
+  fi
+  echo "skipping $t (no rehlds-sven-bin archive attached yet)"
+done
+[ -n "$ENGINE_ZIP" ] || { echo "ERROR: no $ENGINE_REPO release has a rehlds-sven-bin archive" >&2; exit 1; }
 unzip -o -q "$ENGINE_ZIP" -d "$WORK/engine/x"
 echo "using $(basename "$ENGINE_ZIP")"
 
