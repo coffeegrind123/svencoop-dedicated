@@ -66,9 +66,12 @@ non-Steam clients are **rejected** by default — the opposite of why you are de
 | path | what |
 |---|---|
 | `docker/Dockerfile.build` | bullseye builder for ReHLDS_Sven |
-| `config/reunion.cfg` | ReUnion config, non-Steam clients accepted |
-| `config/plugins.ini` | Metamod plugin list (ReUnion first) |
 | `docs/` | findings and runbook |
+
+> [!NOTE]
+> `config/reunion.cfg` and `config/plugins.ini` used to live here. They are now built and
+> shipped by the engine fork's CI inside every release, so this repo no longer carries a
+> second copy to drift out of step. See **The plugin stack** below.
 
 ## The engine fork
 
@@ -98,9 +101,36 @@ instead of building:
 gh release download -R coffeegrind123/ReHLDS_Sven -p 'rehlds-sven-bin-*.zip'
 ```
 
-⚠ Take **only** `hlds_linux` and `engine_i486.so` from it. `filesystem_stdio.so` must come from
-the official Sven dedicated server (it provides Sven's `SCFileSystem002`, which ReHLDS_Sven's
-own build does not), and `libsteam_api.so` from ReHLDS_Sven's `rehlds/lib/linux32/`.
+⚠ Take **only** `hlds_linux` and `engine_i486.so` from `bin/linux32/`. `filesystem_stdio.so`
+must come from the official Sven dedicated server (it provides Sven's `SCFileSystem002`, which
+ReHLDS_Sven's own build does not), and `libsteam_api.so` from ReHLDS_Sven's
+`rehlds/lib/linux32/`.
+
+## The plugin stack
+
+**Metamod-R and ReUnion no longer need assembling here.** Every ReHLDS_Sven release ships a
+`gamedir/` overlay; copy its contents into the mod directory (`svencoop/`):
+
+| path | what |
+|---|---|
+| `addons/metamod/metamod_i386.so`, `metamod.dll` | Metamod-R, pinned |
+| `addons/metamod/config.ini` | points Metamod at the real game library |
+| `addons/metamod/plugins.ini` | plugin list, ReUnion first |
+| `addons/reunion/reunion_mm_i386.so`, `reunion_mm.dll` | ReUnion, pinned |
+| `reunion.cfg` | already has `cid_NoSteam47/48 = 3` (see the trap above) |
+| `rotate-reunion-salt.sh` | forces a new salt |
+
+### The salt is generated for you now
+
+`reunion.cfg` ships with `SteamIdHashSalt = GENERATE_ON_FIRST_RUN` and the **engine** replaces
+it from the OS CSPRNG on first start, saving a copy to `<gamedir>/.reunion_salt` (mode `0600`).
+A salt baked into a public release would be identical for everyone who downloaded it, so it
+would be no salt at all.
+
+⚠ **Keep `.reunion_salt`.** It is what lets a newer release be unpacked over an install without
+minting a *new* salt — and a new salt changes every generated `STEAM_x:y:z`, invalidating every
+ban and stored per-player record. A salt set by hand is never touched; `-noreunionsalt` disables
+the behaviour.
 
 ### The three Sven fixes
 
