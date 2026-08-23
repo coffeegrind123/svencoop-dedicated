@@ -1,7 +1,7 @@
 # svencoop-dedicated
 
 Build and run a **Sven Co-op dedicated server that accepts non-Steam clients**, using
-[ReHLDS_Sven](https://github.com/coffeegrind123/ReHLDS_Sven) + [Metamod-R](https://github.com/rehlds/Metamod-R)
+[ReHLDS_Sven](https://github.com/coffeegrind123/ReHLDS_Sven) + [metamod-fallguys](https://github.com/hzqst/metamod-fallguys)
 + [ReUnion](https://github.com/rehlds/reunion) with the official Sven Co-op `server.so`.
 
 This is a **recipe, not a redistribution**. It contains build scripts and configs.
@@ -22,7 +22,7 @@ It fetches everything and verifies the result:
 |---|---|
 | Steam app **276060**, anonymous | retail content, `dlls/server.so`, `filesystem_stdio.so`, `cl_dlls/`, `liblist.gam` |
 | steamcmd | `steamclient.so` — a modern one; Sven's own stops at `SteamClient020` |
-| [ReHLDS_Sven](https://github.com/coffeegrind123/ReHLDS_Sven) release | engine, launcher, `libsteam_api.so`, and Metamod-R + ReUnion preconfigured |
+| [ReHLDS_Sven](https://github.com/coffeegrind123/ReHLDS_Sven) release | engine, launcher, `libsteam_api.so`, and metamod-fallguys + ReUnion preconfigured |
 
 No Steam account is needed. App 276060 resolves depots `1006`, `225841` (the **game**
 content) and `276062`, all reachable anonymously.
@@ -150,17 +150,24 @@ ReHLDS_Sven's own build does not), and `libsteam_api.so` from ReHLDS_Sven's
 
 ## The plugin stack
 
-**Metamod-R and ReUnion no longer need assembling here.** Every ReHLDS_Sven release ships a
+**metamod and ReUnion no longer need assembling here.** Every ReHLDS_Sven release ships a
 `gamedir/` overlay; copy its contents into the mod directory (`svencoop/`):
 
 | path | what |
 |---|---|
-| `addons/metamod/metamod_i386.so`, `metamod.dll` | Metamod-R, pinned |
-| `addons/metamod/config.ini` | points Metamod at the real game library |
+| `addons/metamod/dlls/metamod.so`, `metamod.dll` | metamod-fallguys, pinned |
+| `addons/metamod/config.ini` | points metamod at the real game library (key: `gamedll`) |
 | `addons/metamod/plugins.ini` | plugin list, ReUnion first |
 | `addons/reunion/reunion_mm_i386.so`, `reunion_mm.dll` | ReUnion, pinned |
 | `reunion.cfg` | already has `cid_NoSteam47/48 = 3` (see the trap above) |
 | `rotate-reunion-salt.sh` | forces a new salt |
+
+⚠ **The metamod binary lives in `addons/metamod/dlls/`, not `addons/metamod/`.** It moved
+with the 2026-08-23 switch from Metamod-R to metamod-fallguys. `liblist.gam` is the only
+part of that wiring this repo writes -- the overlay does not ship it -- so the path is
+hardcoded in `scripts/assemble.sh` and has to track the release. `meta version` on a
+running server reports `Metamod-P (mm-p)` / `1.21p38`; a `1.3.x` there means an old
+overlay.
 
 ### The salt is generated for you now
 
@@ -200,7 +207,7 @@ than as context-free diffs.
 
 Working end to end on the rebuilt engine (`3.15.0.898`, verified 2026-08-17): boots with
 `Console initialized.`, reports `Exe version 5.0.18 (svencoop)` (matching what 301 of 312 live
-public servers report), Metamod-r loads, the official `server.so` loads, `meta list` shows
+public servers report), metamod loads, the official `server.so` loads, `meta list` shows
 `[ 1] Reunion RUN`, a map spawns, and a **non-Steam client reaches `ca_active` and sustains
 gameplay** with ReUnion issuing a generated `STEAM_x:y:z` identity.
 
@@ -281,6 +288,6 @@ conflate the two.
 ## Licence
 
 Scripts and configs here: MIT (see `LICENSE`).
-ReHLDS_Sven, Metamod-R and ReUnion are their authors' work under their own licences.
+ReHLDS_Sven, metamod-fallguys and ReUnion are their authors' work under their own licences.
 Sven Co-op and Half-Life content belongs to their respective owners and is **not**
 included — it is downloaded from Steam at build time.

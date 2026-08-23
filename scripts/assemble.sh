@@ -144,14 +144,24 @@ install -m 0644 "$EBIN/engine_i486.so" "$OUT/engine_i486.so"
 cp -a "$EGAME/." "$OUT/svencoop/"
 
 # ---------------------------------------------------------------------------
-# liblist.gam: point the engine at Metamod, which then loads dlls/server.so.
+# liblist.gam: point the engine at metamod, which then loads dlls/server.so.
 # Rewritten in place rather than shipping a fork of the file, so retail updates
 # flow through untouched.
+#
+# ⚠ liblist.gam is the ONE piece of the metamod wiring this repo owns. Everything
+# else -- the binaries, config.ini, plugins.ini -- arrives preconfigured in the
+# ReHLDS_Sven release overlay and is copied wholesale above. The overlay does NOT
+# contain liblist.gam, so a layout change on that side does not propagate here.
+#
+# ⚠ The path is addons/metamod/DLLS/metamod.so as of the 2026-08-23 move from
+# Metamod-R to metamod-fallguys (a metamod-p fork targeting Sven Co-op). It was
+# addons/metamod/metamod_i386.so before. Get this wrong and the engine reports
+# "Failure to load game DLL" with no mention of the path.
 # ---------------------------------------------------------------------------
 if [ -f "$OUT/svencoop/liblist.gam" ]; then
-  sed -i 's|^gamedll_linux .*|gamedll_linux "addons/metamod/metamod_i386.so"|' "$OUT/svencoop/liblist.gam"
+  sed -i 's|^gamedll_linux .*|gamedll_linux "addons/metamod/dlls/metamod.so"|' "$OUT/svencoop/liblist.gam"
   grep -q '^gamedll_linux' "$OUT/svencoop/liblist.gam" \
-    || echo 'gamedll_linux "addons/metamod/metamod_i386.so"' >> "$OUT/svencoop/liblist.gam"
+    || echo 'gamedll_linux "addons/metamod/dlls/metamod.so"' >> "$OUT/svencoop/liblist.gam"
   echo "liblist.gam -> $(grep '^gamedll_linux' "$OUT/svencoop/liblist.gam")"
 fi
 
@@ -244,7 +254,7 @@ chk "hlds_linux present and executable"        '[ -x "$OUT/hlds_linux" ]'
 chk "engine_i486.so present"                   '[ -s "$OUT/engine_i486.so" ]'
 chk "libsteam_api.so present"                  '[ -s "$OUT/libsteam_api.so" ]'
 chk "steamclient.so provides $WANT_SC"         'grep -aq "$WANT_SC" "$OUT/steamclient.so"'
-chk "metamod present"                          '[ -s "$OUT/svencoop/addons/metamod/metamod_i386.so" ]'
+chk "metamod present"                          '[ -s "$OUT/svencoop/addons/metamod/dlls/metamod.so" ]'
 chk "reunion present"                          '[ -s "$OUT/svencoop/addons/reunion/reunion_mm_i386.so" ]'
 chk "reunion.cfg accepts non-Steam (cid 47)"   'grep -qE "^cid_NoSteam47 = 3" "$OUT/svencoop/reunion.cfg"'
 chk "reunion.cfg accepts non-Steam (cid 48)"   'grep -qE "^cid_NoSteam48 = 3" "$OUT/svencoop/reunion.cfg"'
@@ -262,7 +272,7 @@ if [ "$LAYER_ONLY" -eq 0 ]; then
   chk "filesystem_stdio.so has SCFileSystem002" 'grep -aq "SCFileSystem002" "$OUT/filesystem_stdio.so"'
   chk "cl_dlls/client.dll staged (map spawns)" '[ -s "$OUT/svencoop/cl_dlls/client.dll" ]'
   chk "maps present"                           '[ -n "$(ls "$OUT/svencoop/maps"/*.bsp 2>/dev/null | head -1)" ]'
-  chk "liblist.gam points at metamod"          'grep -q "metamod_i386.so" "$OUT/svencoop/liblist.gam"'
+  chk "liblist.gam points at metamod"          'grep -q "addons/metamod/dlls/metamod.so" "$OUT/svencoop/liblist.gam"'
 fi
 
 [ "$fail" -eq 0 ] || { echo; echo "assembly FAILED" >&2; exit 1; }
