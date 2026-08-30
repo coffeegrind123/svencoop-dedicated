@@ -4,6 +4,9 @@ Build and run a **Sven Co-op dedicated server that accepts non-Steam clients**, 
 [ReHLDS_Sven](https://github.com/coffeegrind123/ReHLDS_Sven) + [metamod-fallguys](https://github.com/hzqst/metamod-fallguys)
 + [ReUnion](https://github.com/rehlds/reunion) with the official Sven Co-op `server.so`.
 
+Since engine `3.15.0.905-sven1` the assembled server also accepts **stock Half-Life clients
+alongside retail Sven ones** — see [Mixed Sven and Half-Life clients](#mixed-sven-and-half-life-clients).
+
 This is a **recipe, not a redistribution**. It contains build scripts and configs.
 It contains no Valve or Sven Co-op content or binaries — those are fetched from Steam at
 build time with `DepotDownloader` (app **276060**, anonymous login).
@@ -129,8 +132,39 @@ commit by commit on top of current upstream, so it carries ~40 upstream commits 
 decompression hardening — and can be rebased again rather than drifting further.
 
 All Sven behaviour sits behind the `REHLDS_SVEN` define. The engine reports the **upstream**
-version it is built on (`3.15.0.898`), not a fork-inflated number, so `sv_version` lines up
-with the upstream release it actually corresponds to.
+version it is built on (`3.15.0.905` as of `3.15.0.905-sven1`), not a fork-inflated number, so
+`sv_version` lines up with the upstream release it actually corresponds to.
+
+### Mixed Sven and Half-Life clients
+
+From `3.15.0.905-sven1`, the engine picks the protocol dialect **per client at runtime**
+rather than at compile time, so a retail Sven Co-op 5.26 player and a stock Half-Life player
+(vanilla, or the [SevenKewp](https://github.com/wootguy/SevenKewp) client) can be on this
+server at the same time — still running the official Sven `server.so`, unchanged.
+
+Both games announce protocol 48, but Svengine widened a set of wire fields and dropped packet
+munging. The engine decides which a client speaks by decoding its **first netchan packet both
+ways** and keeping whichever parses as a valid `clc` stream, so it is not relying on anything
+the client claims about itself.
+
+| cvar | default | |
+|---|---|---|
+| `sv_proto_dialect` | `auto` | `sven` / `hl` pin every client, for testing |
+| `sv_proto_fallback` | `sven` | assumed when detection stays inconclusive |
+| `sv_proto_log` | `0` | `1` logs each verdict and connect; `2` adds hex dumps |
+
+`status` gains a `proto` column showing what each player is being served. Nothing needs
+configuring for the default behaviour — the two `FCVAR_SERVER` cvars above show up in
+`A2S_RULES`, which is the quickest way to confirm an assembled server really is on an engine
+new enough to do this.
+
+⚠ **The engine framing being correct is not the same as the mod being playable.** A Half-Life
+client gets correct bytes for every message, but whether it has the *content* and the
+client-side message handlers to make sense of what a Sven mod sends it is a mod and gamedir
+question, not an engine one. It also cannot represent coordinates past ±4096 units, entity
+indices past 2047, or more than 56 delta fields — the engine clamps and truncates rather than
+sending something the client would misparse. The full list is in the
+[engine release notes](https://github.com/coffeegrind123/ReHLDS_Sven/releases/tag/3.15.0.905-sven1).
 
 ### Prebuilt binaries
 
@@ -210,6 +244,18 @@ Working end to end on the rebuilt engine (`3.15.0.898`, verified 2026-08-17): bo
 public servers report), metamod loads, the official `server.so` loads, `meta list` shows
 `[ 1] Reunion RUN`, a map spawns, and a **non-Steam client reaches `ca_active` and sustains
 gameplay** with ReUnion issuing a generated `STEAM_x:y:z` identity.
+
+**Engine `3.15.0.905-sven1`, verified 2026-08-30** by swapping `engine_i486.so`, `hlds_linux`
+and `libsteam_api.so` into a running deployment and restarting it: `Console initialized.`,
+`Exe version 5.0.18 (svencoop)`, metamod banner, `Started map "bm_sts"`, Steam connected, and
+`A2S_RULES` advertising `sv_proto_dialect=auto` / `sv_proto_fallback=sven` — so the
+per-client dialect layer is live.
+
+⚠ What that run did **not** cover: no stock Half-Life client was connected to it. The
+mixed-client path is verified by the engine's own unit tests and against an independently
+measured wire spec, not yet by two real clients of different kinds on this deployment at
+once. Treat "Sven clients still work, and the new code is loaded" as what is established
+here.
 
 ### ⚠ Back-to-back verifier runs fail ~20% — that is YOUR TEST, not the server
 
