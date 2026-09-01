@@ -199,7 +199,7 @@ fi
 API_SRC=$(find "$WORK/engine/x" -name 'libsteam_api.so' -print -quit || true)
 [ -n "$API_SRC" ] || {
   echo "ERROR: libsteam_api.so not found in the ReHLDS_Sven release." >&2
-  echo "       Releases from 3.15.0.898-sven4 onward ship it in bin/linux32/." >&2
+  echo "       A ReHLDS_Sven release ships it in bin/linux32/." >&2
   exit 1; }
 install -m 0644 "$API_SRC" "$OUT/libsteam_api.so"
 
