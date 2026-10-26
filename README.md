@@ -3,7 +3,7 @@
 Build and run a **Sven Co-op dedicated server that accepts non-Steam clients**, using
 [ReHLDS_Sven](https://github.com/coffeegrind123/ReHLDS_Sven) +
 [metamod-svencoop](https://github.com/metamod-svencoop/metamod-svencoop) +
-[ReUnion](https://github.com/rehlds/reunion) with the official Sven Co-op `server.so`.
+[ReUnion](https://github.com/coffeegrind123/ReUnion/tree/sven-retail-serverinfo) with the official Sven Co-op `server.so`.
 
 The assembled server also accepts **stock Half-Life clients alongside retail Sven Co-op
 ones** — see [Mixed Sven and Half-Life clients](#mixed-sven-and-half-life-clients).
@@ -157,15 +157,16 @@ overlay whose contents go into the mod directory (`svencoop/`):
 | `rotate-reunion-salt.sh` | forces a new salt |
 
 The Metamod binary lives in `addons/metamod/dlls/`, not `addons/metamod/`; it moved with the
-2026-08-23 switch from Metamod-R to metamod-fallguys (since renamed metamod-svencoop). `liblist.gam` is the only part of that
-wiring this repository writes — the overlay does not ship it — so the path is set in
-`scripts/assemble.sh` and has to track the release.
+2026-08-23 switch from Metamod-R to metamod-fallguys (since renamed metamod-svencoop).
+`liblist.gam` is the only part of that wiring this repository writes — the overlay does not
+ship it — so the path is set in `scripts/assemble.sh` and has to track the release.
 
 ## Repository layout
 
 | path | what |
 |---|---|
 | `scripts/assemble.sh` | fetches everything and builds a complete server |
+| `scripts/bullseye-apt.sh` | points apt in `debian:11-slim` at snapshot.debian.org; Debian 11 is past EOL and `deb.debian.org` no longer serves its security pool |
 | `docker/Dockerfile.run` | bullseye runtime; mount an assembled tree at `/server` |
 | `docker/Dockerfile.build` | bullseye builder, for building ReHLDS_Sven from source |
 | `docs/troubleshooting.md` | diagnosed failures and the evidence behind them |
