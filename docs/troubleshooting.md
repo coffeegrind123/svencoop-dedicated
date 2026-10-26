@@ -42,7 +42,7 @@ A **different** failure with a different cause, easily conflated with the one ab
 
 It can also mean the Metamod path in `liblist.gam` is wrong. The Metamod binary lives at
 `addons/metamod/dlls/metamod.so` since the 2026-08-23 switch from Metamod-R to
-metamod-fallguys; a `liblist.gam` still pointing at `addons/metamod/metamod_i386.so` produces
+metamod-fallguys (since renamed metamod-svencoop); a `liblist.gam` still pointing at `addons/metamod/metamod_i386.so` produces
 this error with no mention of the path it tried.
 
 ## Debian 11 is required on both sides
@@ -113,7 +113,7 @@ this was never related to the upstream rebuild.
 `meta list` showing `[ 1] Reunion  RUN` is the only proof. `Read plugin config for: Reunion`
 is printed either way and is not evidence.
 
-metamod-fallguys prints nothing on a successful plugin load, so grepping the startup log for
+metamod-svencoop prints nothing on a successful plugin load, so grepping the startup log for
 `reunion` comes back empty on a healthy server. `meta version` reports `Metamod-P (mm-p)` /
 `1.21p38`; a `1.3.x` there means an old overlay.
 

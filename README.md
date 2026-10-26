@@ -2,7 +2,7 @@
 
 Build and run a **Sven Co-op dedicated server that accepts non-Steam clients**, using
 [ReHLDS_Sven](https://github.com/coffeegrind123/ReHLDS_Sven) +
-[metamod-fallguys](https://github.com/hzqst/metamod-fallguys) +
+[metamod-svencoop](https://github.com/metamod-svencoop/metamod-svencoop) +
 [ReUnion](https://github.com/rehlds/reunion) with the official Sven Co-op `server.so`.
 
 The assembled server also accepts **stock Half-Life clients alongside retail Sven Co-op
@@ -38,7 +38,7 @@ resolves depots `1006`, `225841` (the game content) and `276062`, all reachable 
 |---|---|
 | Steam app **276060**, anonymous | retail content, `dlls/server.so`, `filesystem_stdio.so`, `cl_dlls/`, `liblist.gam` |
 | steamcmd | `steamclient.so` — a modern one; Sven's own stops at `SteamClient020` |
-| [ReHLDS_Sven](https://github.com/coffeegrind123/ReHLDS_Sven) release | engine, launcher, `libsteam_api.so`, and metamod-fallguys + ReUnion preconfigured |
+| [ReHLDS_Sven](https://github.com/coffeegrind123/ReHLDS_Sven) release | engine, launcher, `libsteam_api.so`, and metamod-svencoop + ReUnion preconfigured |
 
 Then run it:
 
@@ -149,7 +149,7 @@ overlay whose contents go into the mod directory (`svencoop/`):
 
 | path | what |
 |---|---|
-| `addons/metamod/dlls/metamod.so`, `metamod.dll` | metamod-fallguys, pinned |
+| `addons/metamod/dlls/metamod.so`, `metamod.dll` | metamod-svencoop, pinned |
 | `addons/metamod/config.ini` | points metamod at the real game library (key: `gamedll`) |
 | `addons/metamod/plugins.ini` | plugin list, ReUnion first |
 | `addons/reunion/reunion_mm_i386.so`, `reunion_mm.dll` | ReUnion, pinned |
@@ -157,7 +157,7 @@ overlay whose contents go into the mod directory (`svencoop/`):
 | `rotate-reunion-salt.sh` | forces a new salt |
 
 The Metamod binary lives in `addons/metamod/dlls/`, not `addons/metamod/`; it moved with the
-2026-08-23 switch from Metamod-R to metamod-fallguys. `liblist.gam` is the only part of that
+2026-08-23 switch from Metamod-R to metamod-fallguys (since renamed metamod-svencoop). `liblist.gam` is the only part of that
 wiring this repository writes — the overlay does not ship it — so the path is set in
 `scripts/assemble.sh` and has to track the release.
 
@@ -178,6 +178,6 @@ second copy to drift out of step.
 
 Scripts and configuration here: MIT (see `LICENSE`).
 
-ReHLDS_Sven, metamod-fallguys and ReUnion are their authors' work under their own licences.
+ReHLDS_Sven, metamod-svencoop and ReUnion are their authors' work under their own licences.
 Sven Co-op and Half-Life content belongs to its respective owners and is **not** included; it
 is downloaded from Steam at build time.

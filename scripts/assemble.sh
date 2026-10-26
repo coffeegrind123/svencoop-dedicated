@@ -154,7 +154,8 @@ cp -a "$EGAME/." "$OUT/svencoop/"
 # contain liblist.gam, so a layout change on that side does not propagate here.
 #
 # ⚠ The path is addons/metamod/DLLS/metamod.so as of the 2026-08-23 move from
-# Metamod-R to metamod-fallguys (a metamod-p fork targeting Sven Co-op). It was
+# Metamod-R to metamod-fallguys (a metamod-p fork targeting Sven Co-op, since
+# renamed metamod-svencoop). It was
 # addons/metamod/metamod_i386.so before. Get this wrong and the engine reports
 # "Failure to load game DLL" with no mention of the path.
 # ---------------------------------------------------------------------------
