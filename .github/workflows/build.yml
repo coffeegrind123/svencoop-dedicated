@@ -38,8 +38,10 @@ jobs:
       - name: Smoke-test the assembled server
         run: |
           set -euo pipefail
-          docker run --rm -v "$RUNNER_TEMP/svencoop-full:/server" -w /server debian:11-slim bash -c '
+          docker run --rm -v "$RUNNER_TEMP/svencoop-full:/server" \
+            -v "$PWD/scripts/bullseye-apt.sh:/bullseye-apt.sh:ro" -w /server debian:11-slim bash -c '
             set -e
+            sh /bullseye-apt.sh
             dpkg --add-architecture i386 >/dev/null
             apt-get update -qq >/dev/null
             apt-get install -y -qq libc6:i386 libstdc++6:i386 lib32gcc-s1 \
@@ -151,7 +153,7 @@ jobs:
             |---|---|
             | `hlds_linux`, `engine_i486.so` | ReHLDS_Sven engine and launcher |
             | `libsteam_api.so` | the copy the engine is linked against |
-            | `svencoop/addons/` | Metamod-R + ReUnion, preconfigured |
+            | `svencoop/addons/` | metamod-svencoop + ReUnion, preconfigured |
             | `svencoop/reunion.cfg` | non-Steam clients accepted (`cid_NoSteam47/48 = 3`) |
             | `assemble.sh` | fetches content and assembles a full tree |
 
